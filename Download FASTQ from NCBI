@@ -1,0 +1,62 @@
+Download: sratoolkit.current-ubuntu64.tar.gz
+
+
+#Unzip the file 
+tar -vxzf downloadfilename
+#The folder will be unzipped now
+
+#Go into the SRA folder and then into the bin folder.
+cd nomedapastasracompleta/bin
+
+#Check the SRA bin folder path
+pwd
+
+#Add the tool to the PATH: replace with the folder path that was verified in the previous step (pdw)
+
+echo 'export PATH=$PATH:putyourpath' >> ~/.bashrc 
+
+#Update
+source ~/.bashrc
+
+#Go back home
+cd ~
+
+#Check if the system is finding the tool
+which fastq-dump
+
+#Message returned:
+/home/elisribeiro/sratoolkit.3.2.1-ubuntu64/bin/fastq-dump 
+
+#Test if the tool is working correctly:
+fastq-dump --stdout -X 2 SRR390728
+
+#Message returned:
+
+Read 2 spots for SRR390728
+Written 2 spots for SRR390728
+@SRR390728.1 1 length=72
+CATTCTTCACGTAGTTCTCGAGCCTTGGTTTTCAGCGATGGAGAATGACTTTGACAAGCTGAGAGAAGNTNC
++SRR390728.1 1 length=72
+;;;;;;;;;;;;;;;;;;;;;;;;;;;9;;665142;;;;;;;;;;;;;;;;;;;;;;;;;;;;;96&&&&(
+@SRR390728.2 2 length=72
+AAGTAGGTCTCGTCTGTGTTTTCTACGAGCTTGTGTTCCAGCTGACCCACTCCCTGGGTGGGGGGACTGGGT
++SRR390728.2 2 length=72
+;;;;;;;;;;;;;;;;;4;;;;3;393.1+4&&5&&;;;;;;;;;;;;;;;;;;;;;<9;<;;;;;464262
+
+#To download/Example: SRR31641737 (Run name)
+
+#Option 1 
+prefetch SRR31641737 #Download the complete file SRR23875742.sra, but do not extract it. Good for when you're not analyzing it right now. It takes up less space.
+fasterq-dump SRR31641737.sra #To extract the fastq files
+
+#Option 2 
+fasterq-dump SRR31641737 #Download and extract the fastq file all at once.
+
+Downloading multiple files at once: create a list with the SSRs, one below the other, in a text file.
+#1) Create a list of the SSRs, one below the other, in a text file.
+
+#2) Run the command
+for SRR in $(cat list_SRR.txt); do prefetch "$SRR" && fasterq-dump "$SRR"; done
+
+# or, if you just want to download: 
+for SRR in $(cat list_SRR.txt); do prefetch "$SRR"; done
