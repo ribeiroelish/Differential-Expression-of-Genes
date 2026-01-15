@@ -1,0 +1,43 @@
+#Checar se o apt tá atualizado 
+sudo apt update
+
+#Instalações 
+
+#FastQC 
+sudo apt install fastqc
+fastqc --version #verifica instalação
+
+#MultiQC 
+sudo apt install multiqc
+multiqc --version
+#É bom pra juntar os relatórios de várias amostras 
+
+#Java (Para verificar a versão)
+java -version 
+#Se precisar instalar:
+sudo apt install default-jre
+
+#Trimmomatic 
+sudo apt install trimmomatic 
+trimmomatic #testar 
+
+#Se for necessário buscar o arquivo .jar, caso não encontre o trimmomatic:
+dpkg -L trimmomatic
+#Exportando o endereço do arquivo .jar para o PATH (rodar automático):
+echo 'alias trimmomatic="java -jar /usr/share/java/trimmomatic-0.39.jar"' >> ~/.bashrc
+#Reiniciar o terminal
+source ~/.bashrc
+trimmomatic #testar 
+
+#HISAT2 
+
+sudo apt install hisat2
+hisat2 #teste
+
+#samtools (converte SAM em BAM) 
+sudo apt install samtools 
+samtools #teste
+
+#featureCounts
+sudo apt install subread
+featureCounts -h #teste
