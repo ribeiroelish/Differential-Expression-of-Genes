@@ -1,0 +1,117 @@
+#Sempre conferir o nome do arquivo e do diretório em todos os comandos
+#OBS1: criei pastas dentro do ambiente para salvar os resultados de cada etapa e o genoma de referência. São elas:
+0_referencia; 1_reads; 2_qc; 3_reads_trimadas; 4_qc2; 5_mapeamento; 6_featureCounts.
+#Esse exemplo é para um dataset de Ecoli.
+
+#FastQC
+# Comando genérico para uma amostra:
+# Este comando gera um relatório de qualidade para o arquivo input.fastq.gz e o salva no diretório especificado.
+#geral:
+fastqc input.fastq.gz -o diretorio-de-saida/
+# Parâmetros:
+# -o: Define o diretório de saída onde o relatório de qualidade será salvo. 
+
+# Comando para ds de Ecoli:
+# Executa o FastQC para cada arquivo .gz no diretório "1_reads" e salva os relatórios no diretório "2_qc".
+#Nesse caso, a extensão é .gz, se for usar um arquivo com outra extensão, deve substituir no script
+for i in 1_reads/*.gz; do fastqc $i -o 2_qc; done
+
+#MultiQC
+# MultiQC agrega relatórios de várias ferramentas de qualidade, em um único relatório.
+# geral:
+multiqc diretorio_input -o diretorio_output
+# Parâmetros:
+# diretorio_input: Diretório contendo os relatórios gerados pelo FastQC ou outras ferramentas.
+# -o: Define o diretório de saída onde o relatório consolidado será salvo.
+
+
+# Comando para ds de Ecoli:
+# Agrega os relatórios do FastQC no diretório "2_qc" e salva o relatório consolidado também no diretório "2_qc".
+multiqc 2_qc/ -o 2_qc/
+
+
+#Trimmomatic
+# geral:
+trimmomatic SE -threads 4 input.fastq.gz output_trimadas.fastq.gz TRAILING:10
+# Parâmetros:
+# SE: Single-End. PE para "paired-end".
+# -threads: Número de threads para execução do Trimmomatic. Ajuste conforme a capacidade do computador (para capacidade baixa use 2 ou 4).
+# TRAILING:10: Remove bases de baixa qualidade do final de cada leitura até encontrar uma base com qualidade maior ou igual a 10. 
+# Comando para ds de Ecoli:
+# Executa o Trimmomatic para cada arquivo .gz no diretório "1_reads", salvando os arquivos "trimados" em "3_reads_trimadas".
+for i in 1_reads/*.gz; do trimmomatic SE -threads 10 "$i" "3_reads_trimadas/$(basename "$i" .gz)_trimadas.gz" TRAILING:10; done
+
+
+# FastQC - segunda etapa
+# Executa o FastQC para cada amostra trimada no diretório "3_reads_trimadas" e salva os resultados em "4_qc2".
+for i in 3_reads_trimadas/*.gz; do fastqc $i -o 4_qc2; done
+# Agrega os relatórios FastQC das amostras trimadas no diretório "4_qc2" e salva o relatório consolidado no mesmo diretório.
+multiqc 4_qc2/ -o 4_qc2/
+
+
+###Mapeamento
+
+# Indexando genoma de referência
+# O `hisat2-build` cria um índice do genoma de referência para o mapeamento das leituras.
+#geral:
+hisat2-build genoma_referencia.fasta genoma_referencia_index
+# Parâmetros:
+# genoma_referencia.fasta: Arquivo FASTA contendo a sequência do genoma de referência. (TEM QUE TÁ EM FASTA)
+# genoma_referencia_index: Prefixo dos arquivos de índice gerados, que serão usados pelo Hisat2 no mapeamento.
+
+# Comando para ds de Ecoli:
+# Cria o índice para o genoma de E. coli K12 localizado em "0_referencia" para uso no mapeamento.
+hisat2-build 0_referencia/Ecoli_k12.fasta 0_referencia/Ecoli_k12_index
+
+
+# Alinhamento
+# `hisat2` é uma ferramenta de alinhamento de leituras de RNA-Seq ou DNA-Seq contra um genoma de referência.
+#geral:
+hisat2 -x genoma_referencia_index -U input.fastq.gz -S output_mapeamento.sam
+
+#Se for um protocolo direct stranded
+hisat2 -x genoma_referencia_index -U input.fastq.gz --rna-strandness F -S output_mapeamento.sam
+
+#Se for um protocolo reverse stranded
+hisat2 -x genoma_referencia_index -U input.fastq.gz --rna-strandness R -S output_mapeamento.sam
+
+# Parâmetros:
+# -x: Especifica o prefixo do índice do genoma de referência criado pelo `hisat2-build`.
+# -U: Define o arquivo de leitura single-end a ser mapeado.
+# -S: Define o arquivo de saída no formato SAM, que contém os alinhamentos.
+# --rna-strandness: Especifica o tipo de protocolo orientado (stranded), F ou R.
+#F indica que as reads estão no mesmo sentido do transcrito.
+#R indica que as reads estão no sentido reverso em relação ao transcrito.
+
+# Comando para ds de Ecoli:
+# Mapeia todas as leituras "trimadas" contra o índice E. coli K12, gerando um arquivo .sam para cada amostra.
+for read in 3_reads_trimadas/*.fastq_trimadas.gz; do sample_name=$(basename "$read" .fastq_trimadas.gz); hisat2 -x 0_referencia/Ecoli_k12_index -U "$read" -S 5_mapeamento/"$sample_name".sam; done
+
+
+# Convertendo de SAM para BAM e ordenando
+
+# Comando para ds de Ecoli:
+for sam_file in 5_mapeamento/*.sam; do sample_name=$(basename "$sam_file" .sam); samtools view -S -b "$sam_file" | samtools sort -o 5_mapeamento/"$sample_name"_sorted.bam; done
+
+# Parâmetros:
+# samtools view -S -b: Converte o arquivo SAM (-S) em BAM (-b).
+# samtools sort -o: Ordena o arquivo BAM e define o nome do arquivo de saída ordenado.
+
+
+###Contagem
+
+#featureCounts
+# `featureCounts` é uma ferramenta para contar leituras alinhadas a features (como genes) especificadas em um arquivo GTF.
+#geral:
+featureCounts -T 4 -a input_coordenadas.gtf -o output_tabela.txt arquivo_mapeamento_sorted.bam
+
+# Parâmetros:
+# -T: Define o número de threads a serem usadas.
+# -a: Especifica o arquivo de anotação (GTF) contendo as coordenadas dos genes.
+# -o: Define o arquivo de saída, que conterá as contagens das leituras para cada feature (gene).
+# arquivo_mapeamento_sorted.bam: Arquivo BAM de alinhamento (ordenado) usado para a contagem de leituras.
+
+# Comando para ds de Ecoli:
+# Conta as leituras alinhadas para cada gene no genoma E. coli K12, utilizando o arquivo GTF, e salva a tabela de contagem no diretório "6_featureCounts".
+featureCounts -T 4 -a 0_referencia/Ecoli_k12.gtf -o 6_featureCounts/counts.txt 5_mapeamento/*_sorted.bam
+
