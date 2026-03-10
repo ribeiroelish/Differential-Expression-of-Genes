@@ -59,4 +59,6 @@ Downloading multiple files at once: create a list with the SSRs, one below the o
 for SRR in $(cat list_SRR.txt); do prefetch "$SRR" && fasterq-dump "$SRR"; done
 
 # or, if you just want to download: 
-for SRR in $(cat list_SRR.txt); do prefetch "$SRR"; done
+for SRR in $(cat list_SRR.txt); do
+    prefetch "$SRR"
+done
