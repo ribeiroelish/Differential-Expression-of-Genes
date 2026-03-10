@@ -1,0 +1,126 @@
+###ATENÇÃO###
+
+#Sempre confira o nome do arquivo e do diretório em todos os comandos
+#Os comandos abaixo são genéricos ou para os arquivos utilizados em aula
+#Faça as adaptações necessárias substituindo os nomes
+
+# Rodar a ferramenta FastQC
+# Comando genérico para uma amostra:
+# FastQC é uma ferramenta para checar a qualidade de leituras de sequenciamento em arquivos FASTQ.
+# Este comando gera um relatório de qualidade para o arquivo input.fastq.gz e o salva no diretório especificado.
+
+# Comando:
+fastqc input.fastq.gz -o diretorio-de-saida/
+
+# Parâmetros:
+# -o: Define o diretório de saída onde o relatório de qualidade será salvo. 
+#     Aqui, será salvo no diretório "diretorio-de-saida".
+
+# Comando para várias amostras utilizadas em aula:
+# Executa o FastQC para cada arquivo .gz no diretório "1_reads" e salva os relatórios no diretório "2_qc".
+for i in 1_reads/*.gz; do fastqc $i -o 2_qc; done
+
+
+# Rodar a ferramenta MultiQC
+# MultiQC agrega relatórios de várias ferramentas de qualidade, como FastQC, em um único relatório consolidado.
+# Comando genérico:
+multiqc diretorio_input -o diretorio_output
+
+# Parâmetros:
+# diretorio_input: Diretório contendo os relatórios gerados pelo FastQC ou outras ferramentas.
+# -o: Define o diretório de saída onde o relatório consolidado será salvo.
+#     Aqui, o relatório é salvo em "diretorio_output".
+
+# Comando utilizado em aula:
+# Agrega os relatórios do FastQC no diretório "2_qc" e salva o relatório consolidado também no diretório "2_qc".
+multiqc 2_qc/ -o 2_qc/
+
+
+# Rodar Trimmomatic
+# Trimmomatic é uma ferramenta para realizar o "trimming" (remoção de bases de baixa qualidade) em leituras de sequenciamento.
+# Comando genérico para uma amostra:
+trimmomatic SE -threads 4 input.fastq.gz output_trimadas.fastq.gz TRAILING:10
+
+# Parâmetros:
+# SE: Modo "Single-End" para arquivos de leitura única. Usar PE para "paired-end" (leitura pareada).
+# -threads: Número de threads para execução do Trimmomatic. Ajuste conforme a capacidade do computador.
+# TRAILING:10: Remove bases de baixa qualidade do final de cada leitura até encontrar uma base com qualidade maior ou igual a 10.
+
+# Comando para várias amostras utilizadas em aula:
+# Executa o Trimmomatic para cada arquivo .gz no diretório "1_reads", salvando os arquivos "trimados" em "3_reads_trimadas".
+for i in 1_reads/*.gz; do trimmomatic SE -threads 10 "$i" "3_reads_trimadas/$(basename "$i" .gz)_trimadas.gz" TRAILING:10; done
+
+
+# Rodar o FastQC e MultiQC novamente nas amostras trimadas
+# Executa o FastQC para cada amostra trimada no diretório "3_reads_trimadas" e salva os resultados em "4_qc2".
+for i in 3_reads_trimadas/*.gz; do fastqc $i -o 4_qc2; done
+# Agrega os relatórios FastQC das amostras trimadas no diretório "4_qc2" e salva o relatório consolidado no mesmo diretório.
+multiqc 4_qc2/ -o 4_qc2/
+
+
+### Etapa 2: Mapeamento
+
+# Indexando genoma de referência
+# O `hisat2-build` cria um índice do genoma de referência para o mapeamento das leituras.
+# Comando genérico para indexar o genoma de referência:
+hisat2-build genoma_referencia.fasta genoma_referencia_index
+
+# Parâmetros:
+# genoma_referencia.fasta: Arquivo FASTA contendo a sequência do genoma de referência.
+# genoma_referencia_index: Prefixo dos arquivos de índice gerados, que serão usados pelo Hisat2 no mapeamento.
+
+# Comando utilizado em aula:
+# Cria o índice para o genoma de E. coli K12 localizado em "0_ref" para uso no mapeamento.
+hisat2-build 0_ref/Ecoli_k12.fasta.fna 0_ref/Ecoli_k12_index
+
+
+# Mapeando
+# `hisat2` é uma ferramenta de alinhamento de leituras de RNA-Seq ou DNA-Seq contra um genoma de referência.
+# Comando genérico:
+hisat2 -x genoma_referencia_index -U input.fastq.gz -S output_mapeamento.sam
+
+#Se fosse um protocolo direct stranded
+hisat2 -x genoma_referencia_index -U input.fastq.gz --rna-strandness F -S output_mapeamento.sam
+
+#Se fosse um protocolo reverse stranded
+hisat2 -x genoma_referencia_index -U input.fastq.gz --rna-strandness R -S output_mapeamento.sam
+
+# Parâmetros:
+# -x: Especifica o prefixo do índice do genoma de referência criado pelo `hisat2-build`.
+# -U: Define o arquivo de leitura "single-end" (não pareado) a ser mapeado.
+# -S: Define o arquivo de saída no formato SAM, que contém os alinhamentos.
+# --rna-strandness: Especifica o tipo de protocolo orientado (stranded), F ou R.
+#F indica que as reads estão no mesmo sentido do transcrito.
+#R indica que as reads estão no sentido reverso em relação ao transcrito.
+
+# Comando utilizado em aula:
+# Mapeia todas as leituras "trimadas" contra o índice E. coli K12, gerando um arquivo .sam para cada amostra.
+for read in 3_reads_trim/*.fastq_trimadas.gz; do sample_name=$(basename "$read" .fastq_trimadas.gz); hisat2 -x 0_ref/Ecoli_k12_index -U "$read" -S 5_map/"$sample_name".sam; done
+
+
+# Convertendo de SAM para BAM e ordenando
+# `samtools` converte arquivos SAM para BAM e ordena esses arquivos.
+# Comando:
+for sam_file in 5_map/*.sam; do sample_name=$(basename "$sam_file" .sam); samtools view -S -b "$sam_file" | samtools sort -o 5_map/"$sample_name"_sorted.bam; done
+
+# Parâmetros:
+# samtools view -S -b: Converte o arquivo SAM (-S) em BAM (-b).
+# samtools sort -o: Ordena o arquivo BAM e define o nome do arquivo de saída ordenado.
+
+
+### Etapa 3: Contagem
+
+# Contagem de leituras com featureCounts
+# `featureCounts` é uma ferramenta para contar leituras alinhadas a features (como genes) especificadas em um arquivo GTF.
+# Comando genérico para uma amostra:
+featureCounts -T 4 -a input_coordenadas.gtf -o output_tabela.txt arquivo_mapeamento_sorted.bam
+
+# Parâmetros:
+# -T: Define o número de threads a serem usadas.
+# -a: Especifica o arquivo de anotação (GTF) contendo as coordenadas dos genes.
+# -o: Define o arquivo de saída, que conterá as contagens das leituras para cada feature (gene).
+# arquivo_mapeamento_sorted.bam: Arquivo BAM de alinhamento (ordenado) usado para a contagem de leituras.
+
+# Comando utilizado em aula:
+# Conta as leituras alinhadas para cada gene no genoma E. coli K12, utilizando o arquivo GTF, e salva a tabela de contagem no diretório "6_featureCounts".
+featureCounts -T 4 -a 0_ref/Ecoli_k12.gtf.gtf -o 6_Counts/counts.txt 5_map/*_sorted.bam
