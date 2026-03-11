@@ -1,7 +1,7 @@
 #Sempre conferir o nome do arquivo e do diretório em todos os comandos
 #OBS1: criei pastas dentro do ambiente para salvar os resultados de cada etapa e o genoma de referência. São elas:
 0_referencia; 1_reads; 2_qc; 3_reads_trimadas; 4_qc2; 5_mapeamento; 6_featureCounts.
-#Esse exemplo é para um dataset de Ecoli.
+
 
 #FastQC
 # Comando genérico para uma amostra:
