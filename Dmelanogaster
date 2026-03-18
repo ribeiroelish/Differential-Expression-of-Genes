@@ -2,6 +2,8 @@
 #OBS1: criei pastas dentro do ambiente para salvar os resultados de cada etapa e o genoma de referência. São elas:
 0_ref; 1_reads; 2_qc; 3_reads_trim; 4_qc2; 5_map; 6_featureCounts.
 
+#Baixar reads 
+for SRR in $(cat list_SRR.txt); do prefetch "$SRR" && fasterq-dump "$SRR"; done
 
 #FastQC
 # Comando genérico para uma amostra:
@@ -13,32 +15,36 @@ fastqc input.fastq.gz -o diretorio-de-saida/
 
 # Executa o FastQC para cada arquivo .gz no diretório "1_reads" e salva os relatórios no diretório "2_qc".
 #Nesse caso, a extensão é .gz, se for usar um arquivo com outra extensão, deve substituir no script
+
 for i in 1_reads/*.gz; do fastqc $i -o 2_qc; done
 
 #MultiQC
 # MultiQC agrega relatórios de várias ferramentas de qualidade, em um único relatório.
 # geral:
+
 multiqc diretorio_input -o diretorio_output
+
 # Parâmetros:
 # diretorio_input: Diretório contendo os relatórios gerados pelo FastQC ou outras ferramentas.
 # -o: Define o diretório de saída onde o relatório consolidado será salvo.
-
-
 # Agrega os relatórios do FastQC no diretório "2_qc" e salva o relatório consolidado também no diretório "2_qc".
+
 multiqc 2_qc/ -o 2_qc/
 
 
 #Trimmomatic
 # geral:
+
 trimmomatic SE -threads 4 input.fastq.gz output_trimadas.fastq.gz TRAILING:10
+
 # Parâmetros:
 # SE: Single-End. PE para "paired-end".
 # -threads: Número de threads para execução do Trimmomatic. Ajuste conforme a capacidade do computador (para capacidade baixa use 2 ou 4).
 # TRAILING:10: Remove bases de baixa qualidade do final de cada leitura até encontrar uma base com qualidade maior ou igual a 10. 
 # Comando para ds de Ecoli:
 # Executa o Trimmomatic para cada arquivo .gz no diretório "1_reads", salvando os arquivos "trimados" em "3_reads_trim".
-for i in 1_reads/*.gz; do trimmomatic PE -threads 10 "$i" "3_reads_trima/$(basename "$i" .gz)_trimadas.gz" TRAILING:10; done
 
+for i in 1_reads/*.gz; do trimmomatic PE -threads 10 "$i" "3_reads_trim/$(basename "$i" .gz)_trimadas.gz" TRAILING:10; done
 
 # FastQC - segunda etapa
 # Executa o FastQC para cada amostra trimada no diretório "3_reads_trim" e salva os resultados em "4_qc2".
